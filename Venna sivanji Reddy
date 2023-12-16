@@ -1,0 +1,81 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"sort"
+	"sync"
+	"time"
+)
+
+func main() {
+	http.HandleFunc("/process-single", processSingle)
+	http.HandleFunc("/process-concurrent", processConcurrent)
+
+	fmt.Println("Server is running on :8080")
+	http.ListenAndServe(":8080", nil)
+}
+
+func processSingle(w http.ResponseWriter, r *http.Request) {
+	startTime := time.Now()
+
+	// Parse request body
+	var input []int
+	err := json.NewDecoder(r.Body).Decode(&input)
+	if err != nil {
+		http.Error(w, "Invalid input", http.StatusBadRequest)
+		return
+	}
+
+	// Sort the array sequentially
+	sort.Ints(input)
+
+	// Calculate the time taken
+	duration := time.Since(startTime)
+
+	// Return the sorted array and time taken
+	response := map[string]interface{}{
+		"sortedArray": input,
+		"timeTaken":   duration.String(),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func processConcurrent(w http.ResponseWriter, r *http.Request) {
+	startTime := time.Now()
+
+	// Parse request body
+	var input []int
+	err := json.NewDecoder(r.Body).Decode(&input)
+	if err != nil {
+		http.Error(w, "Invalid input", http.StatusBadRequest)
+		return
+	}
+
+	// Use goroutines and wait group for concurrent sorting
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		sort.Ints(input)
+	}()
+
+	// Wait for the goroutine to finish
+	wg.Wait()
+
+	// Calculate the time taken
+	duration := time.Since(startTime)
+
+	// Return the sorted array and time taken
+	response := map[string]interface{}{
+		"sortedArray": input,
+		"timeTaken":   duration.String(),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+curl -X POST -H "Content-Type: application/json" -d '{"array": [3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5]}' http://localhost:8080/process-single
